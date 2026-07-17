@@ -4,6 +4,18 @@ Newest entry first. Every completed step gets an entry: what changed, decisions 
 
 ---
 
+## 2026-07-17 — Session 1b: pushed to GitHub, deps installed
+
+**Done:** `pip install -r requirements.txt` succeeded (Python 3.14, no pins needed). Remote repo already existed at https://github.com/Ad1CS/igGraber.git (user-created, had an auto-generated "Initial commit" with a one-line README). Added it as `origin`, rebased our Step 0 commit on top, resolved the README.md add/add conflict by keeping our fuller version titled "# igGraber (InstaGraber)", pushed to `main`. No `gh` CLI needed — Windows already had Git Credential Manager (`credential.helper=manager`) configured, so the HTTPS push authenticated via a normal browser popup.
+
+**Still blocked on user action (cannot be done by the assistant — involves entering the user's own credentials):**
+- **Telegram bot token:** must be created by messaging **@BotFather** in Telegram directly (no tool access to the user's Telegram account) and the token pasted into `.env` by the user.
+- **Instagram session:** `instaloader --login <username>` prompts interactively for a password (and 2FA) — entering account passwords is something the assistant must never do, even at the user's request. The user needs to run this themselves in a terminal in this folder.
+
+**Next:** once the user has done those two things (`.env` filled in, IG session file exists), verify Step 1 (send a test Telegram message, load the IG session), commit+push, then build Step 2 (story fetcher).
+
+---
+
 ## 2026-07-17 — Session 1: kickoff & scaffold (Step 0)
 
 **Done:** Project scaffolded from an empty folder — docs (CLAUDE.md, ROADMAP.md, this log, README.md), `.gitignore`, `.env.example` (+ local `.env` pre-filled with the owner chat id), `config.json`, `requirements.txt`. Git repo initialized on `main`, first commit made. GitHub push pending: `gh` CLI wasn't installed, so the user needs to install it and run `gh auth login` once; then we create the private repo and push.

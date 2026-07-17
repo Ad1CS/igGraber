@@ -3,8 +3,8 @@
 Rule: a step is **done** only after its check passes. Then: tick the box here, add a PROJECT_LOG.md entry, `git commit`, `git push`.
 
 - [x] **Step 0 — Scaffold & repo**
-  Project docs, .gitignore, .env template, config.json, requirements.txt; git init + first commit; private GitHub repo + push.
-  *Check:* `git log` shows the commit; repo visible on GitHub. *(Push pending — needs `gh auth login` from the user.)*
+  Project docs, .gitignore, .env template, config.json, requirements.txt; git init + first commit; GitHub repo + push.
+  *Check:* `git log` shows the commit; pushed to https://github.com/Ad1CS/igGraber — done.
 
 - [ ] **Step 1 — Credentials & environment** *(needs user actions first — see README setup)*
   Telegram bot token in `.env`; dependencies installed; Instagram session created via `instaloader --login`.
