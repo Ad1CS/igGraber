@@ -4,6 +4,14 @@ Newest entry first. Every completed step gets an entry: what changed, decisions 
 
 ---
 
+## 2026-07-17 — Session 1c: Telegram token in, verified live
+
+**Done:** User created the bot via @BotFather — **@igGraberBOT** (id `8816428327`) — and gave the token, which is now saved only in `.env` (confirmed git-ignored via `git check-ignore`, never committed). `getMe` call confirms the token is valid. First `sendMessage` test returned `400 chat not found` — expected, since the user hadn't pressed Start on the bot yet. Waiting on that before the send-test can pass.
+
+**Next:** user presses Start on @igGraberBOT in Telegram → re-run the test send → once it arrives, Step 1's Telegram half is done. Still need the Instagram session (`instaloader --login`) for the other half of Step 1.
+
+---
+
 ## 2026-07-17 — Session 1b: pushed to GitHub, deps installed
 
 **Done:** `pip install -r requirements.txt` succeeded (Python 3.14, no pins needed). Remote repo already existed at https://github.com/Ad1CS/igGraber.git (user-created, had an auto-generated "Initial commit" with a one-line README). Added it as `origin`, rebased our Step 0 commit on top, resolved the README.md add/add conflict by keeping our fuller version titled "# igGraber (InstaGraber)", pushed to `main`. No `gh` CLI needed — Windows already had Git Credential Manager (`credential.helper=manager`) configured, so the HTTPS push authenticated via a normal browser popup.
