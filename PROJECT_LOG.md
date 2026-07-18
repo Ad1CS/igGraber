@@ -4,6 +4,20 @@ Newest entry first. Every completed step gets an entry: what changed, decisions 
 
 ---
 
+## 2026-07-18 — Session 2e: incident — gleamflux rate-limited/blocked after 1-min polling
+
+**What happened:** at the user's request, `poll_interval_minutes` was set to 1 and the bot restarted several times while also being manually hammered with test requests (Step 1–4 verification, multiple `Profile.from_username`/`get_active_stories` calls in quick succession). ~7 minutes after switching to 1-min polling, the scheduled job logged `ERROR Failed to fetch stories for @magshimim_confessions` with `instaloader.exceptions.ProfileNotExistsException: Profile magshimim_confessions does not exist.` Independently re-ran the lookup outside the bot process — reproducible. Then tested `instagram`, `gleamflux` (the logged-in account itself), and `magshimim_confessions` — **all three failed identically**, including the self-lookup on `gleamflux`. This rules out anything specific to one target profile; it's the `gleamflux` session/account being rate-limited or soft-blocked by Instagram, which it's reporting as a blanket "profile doesn't exist" rather than an explicit rate-limit error.
+
+**Action taken:** stopped the running bot process immediately (further requests would likely prolong or worsen a block). Reverted `poll_interval_minutes` back to 15 in `config.json`. Did **not** re-run further Instagram requests to probe/confirm recovery — deliberately, to avoid compounding it.
+
+**Root cause (likely):** combination of (a) 1-minute automated polling — 15x more frequent than the recommended baseline, and (b) a burst of manual verification calls during Step 1–4 testing, on an account that had already triggered one checkpoint challenge during initial login (see Session 1c/2 log). New/secondary accounts appear to have a much lower tolerance before Instagram's anti-automation systems kick in.
+
+**Lesson — feeds directly into Step 5:** the bot currently just logs-and-swallows this error (`poll_once`'s `except Exception` around the fetch); the user gets no signal that anything's wrong, it just silently stops reporting new stories. Step 5's "detect expired/invalid session → warn the owner on Telegram" needs to also cover this rate-limit-flavored failure (repeated `ProfileNotExistsException` across multiple usernames in a short window is the signature to detect), not just a literal expired session file.
+
+**Next:** pause all Instagram requests (manual and automated) for a cooldown period before resuming — do not restart the bot or run further test lookups until the user confirms. Once confirmed recovered, resume at a conservative interval (15 min, already set) and build Step 5 with this exact incident as the first hardening target: detect repeated fetch failures, stop hammering after N consecutive failures, and warn the owner on Telegram instead of silently going dark.
+
+---
+
 ## 2026-07-18 — Session 2d: Step 4 — runtime commands built & verified live
 
 **Done:** Added owner-only command handlers to [bot.py](bot.py): `owner_only` decorator silently ignores any chat id other than `TELEGRAM_CHAT_ID`. `/watch <username_or_url>` validates via `Profile.from_username` (catches `ProfileNotExistsException`), rewrites `config.json`, and immediately calls `poll_once` to baseline the new target right away rather than waiting for the next scheduled cycle. `/status` reports current target/interval/sync state/known-id count. `/check` forces an immediate poll and reports what happened (baselined / N sent / nothing new). `/help` lists commands. `poll_once` was refactored to return a result dict (`baselined`, `active_count`, `notified_count`, `error`) so the commands can give meaningful replies instead of just "done". Also added `parse_ig_username()` so `/watch` accepts either a bare username or a full `instagram.com/<user>/` profile URL (user specifically asked for URL support) — strips scheme/query, takes the first path segment.
