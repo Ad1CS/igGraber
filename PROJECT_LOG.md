@@ -4,6 +4,16 @@ Newest entry first. Every completed step gets an entry: what changed, decisions 
 
 ---
 
+## 2026-07-18 — Session 2c: Step 3 — notifier loop built & verified
+
+**Done:** [bot.py](bot.py) added: `poll_once(bot)` is the core logic — loads `config.json`, fetches active stories via `ig_watcher.get_active_stories`, diffs ids against `state.json`. If the target in state doesn't match the configured target (first run, or a switched account), it baselines silently — saves the current ids as already-notified without messaging, so pre-existing stories never spam on startup or on switching accounts. Otherwise it sends a Telegram notification (video or photo, matching `is_video`) for every id not yet in `notified_ids`, then updates state. `send_story_notification` tries the Instagram CDN URL directly (Telegram fetches it server-side); if that ever gets hotlink-blocked, it falls back to downloading the bytes through the authenticated instaloader session and uploading them directly. `scheduled_poll` wraps `poll_once` for `Application.job_queue.run_repeating` on the configured `poll_interval_minutes`. No command handlers yet (Step 4).
+
+**Verified live** with 4 sequential runs (can't wait for a real new post, so simulated deterministically): (1) fresh state against `@instagram` (has a live story) → baselined silently, 0 messages; (2) re-run, unchanged → 0 messages; (3) manually cleared `notified_ids` to simulate a new story → exactly 1 notification sent and confirmed delivered (HTTP 200, `message_id=3`, sent as video via direct CDN URL — no fallback needed); (4) reverted `config.json` to the real target `magshimim_confessions` → baselined silently at 0 (correct, nothing currently posted), leaving a clean production `state.json`.
+
+**Next:** Step 4 — add owner-only command handlers to `bot.py`: `/watch <username>` (validate the account exists via `Profile.from_username`, rewrite `config.json`, takes effect on the next poll without restart), `/status`, `/check` (force an immediate poll), `/help`. Reject/ignore any chat id other than `TELEGRAM_CHAT_ID`.
+
+---
+
 ## 2026-07-18 — Session 2b: Step 2 — story fetcher built & verified
 
 **Done:** [ig_watcher.py](ig_watcher.py) added: `load_session(username)` wraps `load_session_from_file`; `get_active_stories(L, target_username)` resolves the profile, calls `L.get_stories(userids=[profile.userid])`, flattens each story's items into dicts (`id`, `timestamp`, `is_video`, `url`), sorted oldest-first. Tested manually against `magshimim_confessions` (0 active stories — correct, nothing posted since we started) and `instagram` (1 active item, all fields populated correctly) — confirms the parsing logic itself works, not just that the target account happens to be empty right now.

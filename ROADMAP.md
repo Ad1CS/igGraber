@@ -14,9 +14,9 @@ Rule: a step is **done** only after its check passes. Then: tick the box here, a
   `ig_watcher.py`: given the target username from `config.json`, list its currently-active story items (id, timestamp, photo/video, media URL).
   *Check:* ran manually against `magshimim_confessions` (0 active, correct — no current story) and `instagram` (1 active item, fields parsed correctly) — done.
 
-- [ ] **Step 3 — Notifier loop**
-  Repeating job every `poll_interval_minutes`: fetch stories, diff against `state.json`, send a Telegram alert (with the media attached when possible) for each unseen item. First run for a new account baselines silently (no spam for old stories).
-  *Check:* point it at an account with live stories and an empty state → exactly those notifications arrive once; second run sends nothing.
+- [x] **Step 3 — Notifier loop**
+  Repeating job every `poll_interval_minutes`: fetch stories, diff against `state.json`, send a Telegram alert (with the media attached when possible) for each unseen item. First run for a new target baselines silently (no spam for old stories).
+  *Check:* tested with 4 controlled runs against `instagram` (has a live story) then the real target — baseline silent, repeat silent, simulated-new-story sent exactly 1 notification (confirmed delivered, message_id=3), revert-to-real-target baselined silently at 0 — all passed.
 
 - [ ] **Step 4 — Runtime commands (change target account from Telegram)**
   `/watch <username>` — validate the account exists, update `config.json`, take effect without restart; `/status`, `/check` (force a poll now), `/help`. Bot ignores everyone except the owner chat id.
