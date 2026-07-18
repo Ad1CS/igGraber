@@ -4,6 +4,23 @@ Newest entry first. Every completed step gets an entry: what changed, decisions 
 
 ---
 
+## 2026-07-18 — Session 2f: Step 5 — hardening built & verified (safely, no live IG calls)
+
+**Done**, all in [bot.py](bot.py):
+- **Missing/expired session detection**: `poll_once` now catches `FileNotFoundError` (session file gone/renamed) and `instaloader.exceptions.LoginRequiredException` (session loaded but Instagram no longer considers it logged in) specifically, sends the owner a Telegram warning with the exact recreation command, and sets a 1h backoff so it doesn't hammer while broken.
+- **Rate-limit backoff**: directly targets the Session 2e incident. Tracks `_consecutive_failures`; at 3+ in a row, backs off for an escalating duration (30 → 60 → 120 → 240 min cap) and warns the owner once per backoff escalation (throttled to at most 1 warning/30 min via `_last_warning_sent`) instead of continuing to poll every cycle into an active block.
+- **Retry-safe notification sending**: each story's send is now in its own try/except inside the loop; only successfully-sent ids are added to `notified_ids`, so a failed send is naturally retried next poll instead of being silently dropped or (the old bug) potentially double-counted.
+- **File logging**: `RotatingFileHandler` added alongside the console handler, writing to `logs/bot.log` (2MB × 3 backups; `logs/` already gitignored).
+- **Global error handler**: `application.add_error_handler(error_handler)` catches anything unhandled from any command or job, logs it, and warns the owner — so a bug anywhere can't silently kill the process.
+
+**Verified** the specific roadmap check — deliberately without touching Instagram, since the account is still in its post-incident cooldown: renamed the real `session-gleamflux` file to simulate expiry. This path is a pure local file check (`FileNotFoundError` fires before any network request), so it was safe to test live. Ran `poll_once` directly: caught the error, sent a real Telegram warning with recovery instructions, set the 1h backoff, returned normally (no crash). Restored the real session file afterward. Confirmed via `inspect.getsource` why the error message mentioned a legacy temp path — `Instaloader.load_session_from_file` checks the modern config-dir path first, then falls back to a pre-v4.4.3 legacy path; both correctly missing after the rename, both attempts failed as expected.
+
+**Deliberately not tested live:** the rate-limit backoff path (3+ consecutive real failures) — would require actually triggering another rate limit against `gleamflux`, which we're avoiding during its cooldown. Logic is implemented and code-reviewed but not live-fire-verified; worth a light manual check later (e.g. temporarily pointing `get_active_stories` at a bad target a few times) once the account is confirmed healthy again.
+
+**Next:** confirm the `gleamflux` account has recovered from the Session 2e rate-limit before resuming any polling. Then Step 6 (Windows Task Scheduler autostart) is the last roadmap item.
+
+---
+
 ## 2026-07-18 — Session 2e: incident — gleamflux rate-limited/blocked after 1-min polling
 
 **What happened:** at the user's request, `poll_interval_minutes` was set to 1 and the bot restarted several times while also being manually hammered with test requests (Step 1–4 verification, multiple `Profile.from_username`/`get_active_stories` calls in quick succession). ~7 minutes after switching to 1-min polling, the scheduled job logged `ERROR Failed to fetch stories for @magshimim_confessions` with `instaloader.exceptions.ProfileNotExistsException: Profile magshimim_confessions does not exist.` Independently re-ran the lookup outside the bot process — reproducible. Then tested `instagram`, `gleamflux` (the logged-in account itself), and `magshimim_confessions` — **all three failed identically**, including the self-lookup on `gleamflux`. This rules out anything specific to one target profile; it's the `gleamflux` session/account being rate-limited or soft-blocked by Instagram, which it's reporting as a blanket "profile doesn't exist" rather than an explicit rate-limit error.

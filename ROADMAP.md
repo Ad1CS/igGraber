@@ -22,9 +22,9 @@ Rule: a step is **done** only after its check passes. Then: tick the box here, a
   `/watch <username or instagram.com profile URL>` — validate the account exists, update `config.json`, take effect without restart; `/status`, `/check` (force a poll now), `/help`. Bot ignores everyone except the owner chat id.
   *Check:* all 4 commands driven live from the owner's Telegram — `/help`, `/status`, `/check` correct; `/watch gleamflux` (plain username) and `/watch https://www.instagram.com/magshimim_confessions/` (profile URL) both switched targets correctly and baselined silently — done. Bonus: two real (non-simulated) new stories on `@gleamflux` were caught and delivered by the live scheduled job during testing.
 
-- [ ] **Step 5 — Hardening**
-  Detect expired/invalid Instagram session → warn the owner on Telegram instead of crashing; retry with backoff on rate limits; log to `logs/`; guard against unhandled exceptions.
-  *Check:* rename the session file to simulate expiry → owner gets a warning message and the bot stays alive.
+- [x] **Step 5 — Hardening**
+  Detect expired/invalid Instagram session → warn the owner on Telegram instead of crashing; escalating backoff + owner warning on repeated fetch failures (rate-limit signature); per-item retry-safe notification sending; rotating file logs in `logs/`; global error handler on the Application so no unhandled exception can crash the process silently.
+  *Check:* renamed the real session file to simulate expiry (zero live Instagram calls — pure local file-not-found path) → `poll_once` caught it, sent the owner a warning with recovery instructions on Telegram, set a 1h backoff, returned normally without crashing — done. File restored afterward.
 
 - [ ] **Step 6 — Run forever on Windows**
   Auto-start at logon via Task Scheduler; final README polish.

@@ -2,6 +2,8 @@ import functools
 import json
 import logging
 import os
+import time
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -15,8 +17,17 @@ from ig_watcher import get_active_stories, load_session
 BASE_DIR = Path(__file__).parent
 CONFIG_PATH = BASE_DIR / "config.json"
 STATE_PATH = BASE_DIR / "state.json"
+LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR.mkdir(exist_ok=True)
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(LOGS_DIR / "bot.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8"),
+    ],
+)
 logger = logging.getLogger("instagraber")
 
 load_dotenv()
@@ -24,7 +35,12 @@ TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
 IG_LOGIN_USERNAME = os.environ["IG_LOGIN_USERNAME"]
 
+WARNING_COOLDOWN_SECONDS = 1800  # don't re-warn the owner more than once per 30 min
+
 _ig_session = None
+_consecutive_failures = 0
+_backoff_until = 0.0
+_last_warning_sent = 0.0
 
 
 def get_ig_session():
@@ -56,6 +72,13 @@ def save_config(config: dict) -> None:
         json.dump(config, f, indent=2)
 
 
+async def warn_owner(bot: Bot, text: str) -> None:
+    try:
+        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text)
+    except Exception:
+        logger.exception("Failed to send warning message to owner")
+
+
 async def send_story_notification(bot: Bot, target: str, item: dict):
     caption = f"New story from @{target}"
     try:
@@ -73,16 +96,46 @@ async def send_story_notification(bot: Bot, target: str, item: dict):
 
 
 async def poll_once(bot: Bot) -> dict:
-    """Fetch, diff, and notify. Returns {baselined, active_count, notified_count}."""
+    """Fetch, diff, and notify. Returns {baselined, active_count, notified_count, error}."""
+    global _consecutive_failures, _backoff_until, _last_warning_sent
+
+    now = time.time()
+    if now < _backoff_until:
+        logger.info("Skipping poll — backing off until %s", time.strftime("%H:%M:%S", time.localtime(_backoff_until)))
+        return {"baselined": False, "active_count": 0, "notified_count": 0, "error": True}
+
     config = load_config()
     target = config["target_username"]
     state = load_state()
 
     try:
         items = get_active_stories(get_ig_session(), target)
+    except (FileNotFoundError, instaloader.exceptions.LoginRequiredException) as e:
+        logger.error("Instagram session for @%s is missing or expired: %s", IG_LOGIN_USERNAME, e)
+        _backoff_until = now + 3600
+        if now - _last_warning_sent > WARNING_COOLDOWN_SECONDS:
+            await warn_owner(bot,
+                f"⚠️ The Instagram session for @{IG_LOGIN_USERNAME} is missing or expired.\n"
+                f"Recreate it with: instaloader --login {IG_LOGIN_USERNAME} (or --load-cookies=<browser>).\n"
+                f"Polling paused for 1 hour.")
+            _last_warning_sent = now
+        return {"baselined": False, "active_count": 0, "notified_count": 0, "error": True}
     except Exception:
         logger.exception("Failed to fetch stories for @%s", target)
+        _consecutive_failures += 1
+        if _consecutive_failures >= 3:
+            backoff_minutes = min(240, 30 * 2 ** (_consecutive_failures - 3))
+            _backoff_until = now + backoff_minutes * 60
+            if now - _last_warning_sent > WARNING_COOLDOWN_SECONDS:
+                await warn_owner(bot,
+                    f"⚠️ {_consecutive_failures} story checks in a row have failed for @{target} — "
+                    f"likely Instagram rate-limiting the @{IG_LOGIN_USERNAME} login.\n"
+                    f"Backing off for {backoff_minutes} min before retrying.")
+                _last_warning_sent = now
         return {"baselined": False, "active_count": 0, "notified_count": 0, "error": True}
+
+    _consecutive_failures = 0
+    _backoff_until = 0.0
 
     current_ids = {item["id"] for item in items}
 
@@ -97,12 +150,20 @@ async def poll_once(bot: Bot) -> dict:
     notified_ids = set(state.get("notified_ids", []))
     new_items = [item for item in items if item["id"] not in notified_ids]
 
+    sent_count = 0
     for item in new_items:
-        msg = await send_story_notification(bot, target, item)
-        logger.info("Notified about story %s from @%s (message_id=%s)", item["id"], target, msg.message_id)
+        try:
+            msg = await send_story_notification(bot, target, item)
+            logger.info("Notified about story %s from @%s (message_id=%s)", item["id"], target, msg.message_id)
+            notified_ids.add(item["id"])
+            sent_count += 1
+        except Exception:
+            # Leave this id out of notified_ids so it's retried on the next poll
+            # instead of being silently lost.
+            logger.exception("Failed to send Telegram notification for story %s from @%s", item["id"], target)
 
-    save_state({"target_username": target, "notified_ids": list(current_ids | notified_ids)})
-    return {"baselined": False, "active_count": len(items), "notified_count": len(new_items), "error": False}
+    save_state({"target_username": target, "notified_ids": list(notified_ids)})
+    return {"baselined": False, "active_count": len(items), "notified_count": sent_count, "error": False}
 
 
 async def scheduled_poll(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -195,6 +256,11 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.error("Unhandled exception while processing an update", exc_info=context.error)
+    await warn_owner(context.bot, f"⚠️ Unexpected error: {context.error}")
+
+
 def main() -> None:
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
@@ -202,6 +268,7 @@ def main() -> None:
     application.add_handler(CommandHandler("status", cmd_status))
     application.add_handler(CommandHandler("check", cmd_check))
     application.add_handler(CommandHandler("help", cmd_help))
+    application.add_error_handler(error_handler)
 
     config = load_config()
     interval_seconds = config["poll_interval_minutes"] * 60
