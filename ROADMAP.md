@@ -10,9 +10,9 @@ Rule: a step is **done** only after its check passes. Then: tick the box here, a
   Telegram bot token in `.env`; dependencies installed; Instagram session created via cookie import (`gleamflux`).
   *Check:* test message delivered to the owner's Telegram chat — done; `load_session_from_file` loads the session and successfully queries `magshimim_confessions` (1,461 followers) — done.
 
-- [ ] **Step 2 — Story fetcher**
+- [x] **Step 2 — Story fetcher**
   `ig_watcher.py`: given the target username from `config.json`, list its currently-active story items (id, timestamp, photo/video, media URL).
-  *Check:* run it manually against an account that currently has stories; items print correctly.
+  *Check:* ran manually against `magshimim_confessions` (0 active, correct — no current story) and `instagram` (1 active item, fields parsed correctly) — done.
 
 - [ ] **Step 3 — Notifier loop**
   Repeating job every `poll_interval_minutes`: fetch stories, diff against `state.json`, send a Telegram alert (with the media attached when possible) for each unseen item. First run for a new account baselines silently (no spam for old stories).

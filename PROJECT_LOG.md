@@ -4,6 +4,16 @@ Newest entry first. Every completed step gets an entry: what changed, decisions 
 
 ---
 
+## 2026-07-18 — Session 2b: Step 2 — story fetcher built & verified
+
+**Done:** [ig_watcher.py](ig_watcher.py) added: `load_session(username)` wraps `load_session_from_file`; `get_active_stories(L, target_username)` resolves the profile, calls `L.get_stories(userids=[profile.userid])`, flattens each story's items into dicts (`id`, `timestamp`, `is_video`, `url`), sorted oldest-first. Tested manually against `magshimim_confessions` (0 active stories — correct, nothing posted since we started) and `instagram` (1 active item, all fields populated correctly) — confirms the parsing logic itself works, not just that the target account happens to be empty right now.
+
+**Note:** stories work with the public account `magshimim_confessions` via `get_stories(userids=[...])` even though `gleamflux` does not follow it — confirms the earlier assumption that public-account stories don't require a follow relationship, just any logged-in session.
+
+**Next:** Step 3 — the notifier loop in `bot.py`: repeating poll job, diff fetched story ids against `state.json`, send new ones to Telegram (media attached where possible), baseline silently on first run for a new target so old stories don't spam on startup.
+
+---
+
 ## 2026-07-18 — Session 2: Step 1 complete — both credentials verified
 
 **Done:** Telegram: user pressed Start on @igGraberBOT, re-sent test message → delivered successfully (chat id 7743200994 confirmed correct). Instagram: plain `instaloader --login gleamflux` failed with `"fail" status, message "Unexpected null login result"` — an Instagram-side checkpoint/suspicious-login response on a fresh secondary account, not a wrong password (confirmed instaloader was already latest, 4.15.2). Worked around it via `instaloader --load-cookies=chrome` (after logging into instagram.com as `gleamflux` normally in Chrome first) — this imports an already-authenticated browser session instead of doing instaloader's own API login, which avoided the checkpoint entirely. Session saved to `%LOCALAPPDATA%\Instaloader\session-gleamflux`. Installed `browser_cookie3` (one-time setup dependency only, not added to requirements.txt — the running bot only ever calls `load_session_from_file`, it doesn't need this package). `IG_LOGIN_USERNAME=gleamflux` set in `.env`. Verified end-to-end with a script that loads the session and fetches the `magshimim_confessions` profile (1,461 followers) — confirms both auth and target-account visibility work together.
