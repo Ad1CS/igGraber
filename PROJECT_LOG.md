@@ -4,6 +4,14 @@ Newest entry first. Every completed step gets an entry: what changed, decisions 
 
 ---
 
+## 2026-07-18 — Session 3b: day interval set to 5 min
+
+**Done:** user wanted 1 min again ("15 is too much"); flagged that the account may still be flagged from the Session 2e incident and 1 min was the exact setting that caused it. Offered 1 min anyway / 5 min compromise / wait-and-confirm-first; user chose **5 min**. `poll_interval_minutes` set to 5 in `config.json` (night stays 30, unchanged). Not yet live — the bot still isn't running (Task Scheduler task registered in Session 3 but deliberately not started), so this has no effect until it's actually started.
+
+**Next:** still waiting on confirmation that `gleamflux` has recovered before starting the bot (manually or via the next logon).
+
+---
+
 ## 2026-07-18 — Session 3: day/night polling + Step 6 — 24/7 autostart
 
 **Done — day/night interval:** [bot.py](bot.py) `main()` now registers two cron-triggered `job_queue` jobs instead of one fixed-interval one: `scheduled_poll_day` (`cron[hour='6-23', minute='*/{poll_interval_minutes}']`) and `scheduled_poll_night` (`cron[hour='0-5', minute='*/{night_poll_interval_minutes}']`), plus a one-off `run_once` 5s after startup to preserve the old "check immediately on launch" behavior that a pure cron schedule would otherwise lose. `config.json` gained `night_poll_interval_minutes: 30`; `poll_interval_minutes` (15) now implicitly means "daytime". `/status` reports both. Night window (00:00–06:00) is a module-level constant (`NIGHT_START_HOUR`/`NIGHT_END_HOUR`), not config — user asked for these specific hours, didn't ask for them to be tunable, so kept it simple rather than adding unrequested config surface. Verified the actual trigger objects directly (`job.job.trigger`) without starting the app or touching Instagram: `cron[hour='6-23', minute='*/15']`, `cron[hour='0-5', minute='*/30']`, `date[...]` for the startup job — all correct.

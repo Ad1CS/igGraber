@@ -1,5 +1,5 @@
 {
   "target_username": "magshimim_confessions",
-  "poll_interval_minutes": 15,
+  "poll_interval_minutes": 5,
   "night_poll_interval_minutes": 30
 }
