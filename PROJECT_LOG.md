@@ -4,6 +4,21 @@ Newest entry first. Every completed step gets an entry: what changed, decisions 
 
 ---
 
+## 2026-07-18 — Session 2d: Step 4 — runtime commands built & verified live
+
+**Done:** Added owner-only command handlers to [bot.py](bot.py): `owner_only` decorator silently ignores any chat id other than `TELEGRAM_CHAT_ID`. `/watch <username_or_url>` validates via `Profile.from_username` (catches `ProfileNotExistsException`), rewrites `config.json`, and immediately calls `poll_once` to baseline the new target right away rather than waiting for the next scheduled cycle. `/status` reports current target/interval/sync state/known-id count. `/check` forces an immediate poll and reports what happened (baselined / N sent / nothing new). `/help` lists commands. `poll_once` was refactored to return a result dict (`baselined`, `active_count`, `notified_count`, `error`) so the commands can give meaningful replies instead of just "done". Also added `parse_ig_username()` so `/watch` accepts either a bare username or a full `instagram.com/<user>/` profile URL (user specifically asked for URL support) — strips scheme/query, takes the first path segment.
+
+**Verified live**, all real Telegram interactions (not simulated): `/help` → correct command list. `/status` → correct target/interval/"in sync"/0 known ids. `/check` → "Checked — nothing new" (accurate). `/watch gleamflux` (bare username, sent before the URL-parsing code existed) → switched target, baselined silently at 0. After adding URL parsing and restarting: `/watch https://www.instagram.com/magshimim_confessions/` → correctly extracted `magshimim_confessions`, switched target, baselined silently at 0. Along the way, **two real (non-simulated) new stories were posted on `@gleamflux`** during testing and the live scheduled job caught + delivered both automatically (message_id 18 and 22) — incidental but strong end-to-end proof the whole pipeline works for real, not just in controlled tests.
+
+**Operational notes for next session:**
+- The bot process needs a manual restart to pick up either code changes or a `poll_interval_minutes` change — it's not hot-reloaded (this becomes moot once Step 6 sets it up as a persistent service).
+- **`poll_interval_minutes` was bumped from 15 to 1** at the user's request, for faster testing turnaround. This is more aggressive than the "modest interval" guidance in CLAUDE.md and raises the risk of Instagram flagging the login account — flagged to the user; revisit dialing it back (e.g. 5 min) once things are confirmed stable, before Step 6 makes this run unattended long-term.
+- Final target confirmed set back to the real one, `magshimim_confessions`, with a clean empty `state.json` baseline.
+
+**Next:** Step 5 — hardening (expired-session detection/warning, retry/backoff, `logs/` output, exception guarding), then Step 6 (Windows Task Scheduler autostart).
+
+---
+
 ## 2026-07-18 — Session 2c: Step 3 — notifier loop built & verified
 
 **Done:** [bot.py](bot.py) added: `poll_once(bot)` is the core logic — loads `config.json`, fetches active stories via `ig_watcher.get_active_stories`, diffs ids against `state.json`. If the target in state doesn't match the configured target (first run, or a switched account), it baselines silently — saves the current ids as already-notified without messaging, so pre-existing stories never spam on startup or on switching accounts. Otherwise it sends a Telegram notification (video or photo, matching `is_video`) for every id not yet in `notified_ids`, then updates state. `send_story_notification` tries the Instagram CDN URL directly (Telegram fetches it server-side); if that ever gets hotlink-blocked, it falls back to downloading the bytes through the authenticated instaloader session and uploading them directly. `scheduled_poll` wraps `poll_once` for `Application.job_queue.run_repeating` on the configured `poll_interval_minutes`. No command handlers yet (Step 4).

@@ -18,9 +18,9 @@ Rule: a step is **done** only after its check passes. Then: tick the box here, a
   Repeating job every `poll_interval_minutes`: fetch stories, diff against `state.json`, send a Telegram alert (with the media attached when possible) for each unseen item. First run for a new target baselines silently (no spam for old stories).
   *Check:* tested with 4 controlled runs against `instagram` (has a live story) then the real target — baseline silent, repeat silent, simulated-new-story sent exactly 1 notification (confirmed delivered, message_id=3), revert-to-real-target baselined silently at 0 — all passed.
 
-- [ ] **Step 4 — Runtime commands (change target account from Telegram)**
-  `/watch <username>` — validate the account exists, update `config.json`, take effect without restart; `/status`, `/check` (force a poll now), `/help`. Bot ignores everyone except the owner chat id.
-  *Check:* drive every command from the owner's Telegram; switch target to another account live and get its notifications.
+- [x] **Step 4 — Runtime commands (change target account from Telegram)**
+  `/watch <username or instagram.com profile URL>` — validate the account exists, update `config.json`, take effect without restart; `/status`, `/check` (force a poll now), `/help`. Bot ignores everyone except the owner chat id.
+  *Check:* all 4 commands driven live from the owner's Telegram — `/help`, `/status`, `/check` correct; `/watch gleamflux` (plain username) and `/watch https://www.instagram.com/magshimim_confessions/` (profile URL) both switched targets correctly and baselined silently — done. Bonus: two real (non-simulated) new stories on `@gleamflux` were caught and delivered by the live scheduled job during testing.
 
 - [ ] **Step 5 — Hardening**
   Detect expired/invalid Instagram session → warn the owner on Telegram instead of crashing; retry with backoff on rate limits; log to `logs/`; guard against unhandled exceptions.
