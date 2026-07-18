@@ -4,6 +4,16 @@ Newest entry first. Every completed step gets an entry: what changed, decisions 
 
 ---
 
+## 2026-07-18 — Session 2: Step 1 complete — both credentials verified
+
+**Done:** Telegram: user pressed Start on @igGraberBOT, re-sent test message → delivered successfully (chat id 7743200994 confirmed correct). Instagram: plain `instaloader --login gleamflux` failed with `"fail" status, message "Unexpected null login result"` — an Instagram-side checkpoint/suspicious-login response on a fresh secondary account, not a wrong password (confirmed instaloader was already latest, 4.15.2). Worked around it via `instaloader --load-cookies=chrome` (after logging into instagram.com as `gleamflux` normally in Chrome first) — this imports an already-authenticated browser session instead of doing instaloader's own API login, which avoided the checkpoint entirely. Session saved to `%LOCALAPPDATA%\Instaloader\session-gleamflux`. Installed `browser_cookie3` (one-time setup dependency only, not added to requirements.txt — the running bot only ever calls `load_session_from_file`, it doesn't need this package). `IG_LOGIN_USERNAME=gleamflux` set in `.env`. Verified end-to-end with a script that loads the session and fetches the `magshimim_confessions` profile (1,461 followers) — confirms both auth and target-account visibility work together.
+
+**Decision:** if a fresh IG login ever hits the same "Unexpected null login result" checkpoint again (e.g. re-doing this on a new secondary account later), skip straight to the `--load-cookies=<browser>` workaround rather than retrying plain `--login` — it's faster and didn't trigger the checkpoint.
+
+**Next:** Step 2 — build `ig_watcher.py`: given `target_username` from `config.json`, return the account's currently active story items (id, timestamp, media type/URL) using the saved `gleamflux` session.
+
+---
+
 ## 2026-07-17 — Session 1c: Telegram token in, verified live
 
 **Done:** User created the bot via @BotFather — **@igGraberBOT** (id `8816428327`) — and gave the token, which is now saved only in `.env` (confirmed git-ignored via `git check-ignore`, never committed). `getMe` call confirms the token is valid. First `sendMessage` test returned `400 chat not found` — expected, since the user hadn't pressed Start on the bot yet. Waiting on that before the send-test can pass.

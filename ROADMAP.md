@@ -6,9 +6,9 @@ Rule: a step is **done** only after its check passes. Then: tick the box here, a
   Project docs, .gitignore, .env template, config.json, requirements.txt; git init + first commit; GitHub repo + push.
   *Check:* `git log` shows the commit; pushed to https://github.com/Ad1CS/igGraber — done.
 
-- [ ] **Step 1 — Credentials & environment** *(needs user actions first — see README setup)*
-  Telegram bot token in `.env`; dependencies installed; Instagram session created via `instaloader --login`.
-  *Check:* test script sends a "hello" message to the owner's Telegram chat; instaloader session loads without asking for a password.
+- [x] **Step 1 — Credentials & environment**
+  Telegram bot token in `.env`; dependencies installed; Instagram session created via cookie import (`gleamflux`).
+  *Check:* test message delivered to the owner's Telegram chat — done; `load_session_from_file` loads the session and successfully queries `magshimim_confessions` (1,461 followers) — done.
 
 - [ ] **Step 2 — Story fetcher**
   `ig_watcher.py`: given the target username from `config.json`, list its currently-active story items (id, timestamp, photo/video, media URL).
