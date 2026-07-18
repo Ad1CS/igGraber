@@ -225,9 +225,11 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     config = load_config()
     state = load_state()
     in_sync = state.get("target_username") == config["target_username"]
+    night_interval = config.get("night_poll_interval_minutes", config["poll_interval_minutes"])
     await update.message.reply_text(
         f"Watching: @{config['target_username']}\n"
-        f"Poll interval: {config['poll_interval_minutes']} min\n"
+        f"Poll interval: {config['poll_interval_minutes']} min (day), {night_interval} min "
+        f"({NIGHT_START_HOUR:02d}:00-{NIGHT_END_HOUR:02d}:00)\n"
         f"State: {'in sync' if in_sync else 'will baseline on next poll'}\n"
         f"Known story ids: {len(state.get('notified_ids', []))}"
     )
@@ -261,6 +263,10 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     await warn_owner(context.bot, f"⚠️ Unexpected error: {context.error}")
 
 
+NIGHT_START_HOUR = 0
+NIGHT_END_HOUR = 6  # night window is [NIGHT_START_HOUR, NIGHT_END_HOUR), local time
+
+
 def main() -> None:
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
@@ -271,11 +277,23 @@ def main() -> None:
     application.add_error_handler(error_handler)
 
     config = load_config()
-    interval_seconds = config["poll_interval_minutes"] * 60
-    application.job_queue.run_repeating(scheduled_poll, interval=interval_seconds, first=5)
+    day_interval = config["poll_interval_minutes"]
+    night_interval = config.get("night_poll_interval_minutes", day_interval)
 
-    logger.info("InstaGraber started, watching @%s every %d min",
-                config["target_username"], config["poll_interval_minutes"])
+    application.job_queue.run_once(scheduled_poll, when=5, name="scheduled_poll_startup")
+    application.job_queue.run_custom(
+        scheduled_poll,
+        job_kwargs={"trigger": "cron", "hour": f"{NIGHT_END_HOUR}-23", "minute": f"*/{day_interval}"},
+        name="scheduled_poll_day",
+    )
+    application.job_queue.run_custom(
+        scheduled_poll,
+        job_kwargs={"trigger": "cron", "hour": f"{NIGHT_START_HOUR}-{NIGHT_END_HOUR - 1}", "minute": f"*/{night_interval}"},
+        name="scheduled_poll_night",
+    )
+
+    logger.info("InstaGraber started, watching @%s — every %d min during the day, every %d min from %02d:00-%02d:00",
+                config["target_username"], day_interval, night_interval, NIGHT_START_HOUR, NIGHT_END_HOUR)
     application.run_polling()
 
 

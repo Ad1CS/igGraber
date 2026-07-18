@@ -4,6 +4,18 @@ Newest entry first. Every completed step gets an entry: what changed, decisions 
 
 ---
 
+## 2026-07-18 — Session 3: day/night polling + Step 6 — 24/7 autostart
+
+**Done — day/night interval:** [bot.py](bot.py) `main()` now registers two cron-triggered `job_queue` jobs instead of one fixed-interval one: `scheduled_poll_day` (`cron[hour='6-23', minute='*/{poll_interval_minutes}']`) and `scheduled_poll_night` (`cron[hour='0-5', minute='*/{night_poll_interval_minutes}']`), plus a one-off `run_once` 5s after startup to preserve the old "check immediately on launch" behavior that a pure cron schedule would otherwise lose. `config.json` gained `night_poll_interval_minutes: 30`; `poll_interval_minutes` (15) now implicitly means "daytime". `/status` reports both. Night window (00:00–06:00) is a module-level constant (`NIGHT_START_HOUR`/`NIGHT_END_HOUR`), not config — user asked for these specific hours, didn't ask for them to be tunable, so kept it simple rather than adding unrequested config surface. Verified the actual trigger objects directly (`job.job.trigger`) without starting the app or touching Instagram: `cron[hour='6-23', minute='*/15']`, `cron[hour='0-5', minute='*/30']`, `date[...]` for the startup job — all correct.
+
+**Done — Step 6, 24/7 autostart:** added [run_bot.bat](run_bot.bat) (cd's to its own directory via `%~dp0`, then `pythonw bot.py` — windowless, since we already have file logging via Step 5's `RotatingFileHandler` so a console isn't needed). Registered a Windows Task Scheduler task named **"InstaGraber"** via PowerShell `Register-ScheduledTask`: trigger = at-logon (`MSFT_TaskLogonTrigger`), action = `run_bot.bat`, settings = `RestartCount 5` / `RestartInterval 5 min` (auto-recovers from a crash) and **`ExecutionTimeLimit = TimeSpan.Zero`** — this one matters: Task Scheduler's default execution time limit is 3 days (`PT72H`), which would have silently killed a "24/7" long-running task every 3 days if left at default. Confirmed via `Get-ScheduledTask`: state `Ready`, `ExecutionTimeLimit=PT0S`, trigger type `MSFT_TaskLogonTrigger`, `RestartCount=5`, `RestartInterval=PT5M`.
+
+**Deliberately not done:** did not call `Start-ScheduledTask` and did not log off/on to trigger it — `gleamflux` is still in its post-rate-limit cooldown from Session 2e, and starting the task would immediately resume live polling (the startup job fires 5s after launch). The task is registered and will fire on the next real Windows logon, or can be started manually with `Start-ScheduledTask -TaskName InstaGraber`, once the account's confirmed healthy. So Step 6's "survives an actual logoff/logon" check is not yet empirically confirmed, only the task configuration itself.
+
+**Next:** confirm `gleamflux` has recovered (user to check for any Instagram checkpoint/restriction banner, or just let it sit longer), then either let the next natural logon start the bot or start it manually — at that point do one real logoff/logon cycle to fully close out Step 6's check. After that, all 6 roadmap steps are done; remaining work is opportunistic (e.g. live-testing the rate-limit backoff path from Step 5 at low risk, once healthy).
+
+---
+
 ## 2026-07-18 — Session 2f: Step 5 — hardening built & verified (safely, no live IG calls)
 
 **Done**, all in [bot.py](bot.py):
